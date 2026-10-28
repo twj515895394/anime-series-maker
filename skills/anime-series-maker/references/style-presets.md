@@ -1,35 +1,41 @@
-# Style presets
+# Style presets · 可选画风（V1 Prompt-only）
 
-Paste one into `series.json → style`. Keep the final "EVERYTHING … must be …" clamp — without it, backgrounds
-slide toward photoreal in some shots. Pick once per series and never change it mid-series.
+Choose exactly one primary medium/style for a series; store it in visual_style. These are starting points, not model performance guarantees.
 
-Always offer these with a recommendation. Default: **Soft Watercolor** — it held character consistency best across
-26 episodes and is the style of the top-performing ones.
+## Stylized 3D anthropomorphic animation (recommended for user example)
 
-## Soft Watercolor (recommended)
-Gentle, cute, "slice-of-life romcom" look. Best for comedy, romance, cats, cozy moments.
+Medium: stylized_3d
+Description: High-quality stylized 3D animated feature look, expressive character acting, soft detailed fur, appealing facial proportions, physically coherent costumes, saturated but balanced colors, soft global illumination, clean cinematic blocking. Preserve recognizable animal muzzle, ears, fur and tail while allowing upright human-like movement. All shots preserve the same character model and costume details.
+Negative style: photorealistic human face; unintended 2D cel rendering; rubbery extra limbs; missing animal features.
 
-```
-2D Japanese anime, soft cel shading, clean thin lineart, soft watercolor-like painted anime backgrounds, warm candlelight and sunlight shafts, bloom glow, romantic comedy anime, blush stickers on cheeks, sparkle accents, high-quality TV anime key animation, consistent character models, full vibrant color. EVERYTHING including all backgrounds must be hand-drawn 2D anime — no photorealism, no live action, no 3D render.
-```
+## 3D toy-like/cartoon
 
-## Sharp Thick-Paint
-High-contrast, glossy "theatrical feature film" look. Best for drama, rivalry, action beats, otome-game vibes.
+Medium: stylized_3d
+Description: Clear 3D cartoon modeling, clean silhouettes, smooth stylized materials, bright family-friendly lighting and readable poses, consistent character proportions and wardrobe.
+Negative style: lifelike human skin; deformed paws; excessive realism.
 
-```
-2D Japanese anime feature-film style, crisp sharp lineart, rich thick-paint cel shading with strong highlights and deep shadows, detailed painted backgrounds, dramatic rim light, cinematic depth of field, saturated jewel-tone palette, high-quality theatrical anime key animation, consistent character models, full vibrant color. EVERYTHING including all backgrounds must be hand-drawn 2D anime — no photorealism, no live action, no 3D render.
-```
+## Soft watercolor 2D
 
-## Flat Cel (TV anime / chibi-friendly)
-Cleanest, most "TV anime" look; lowest risk of realistic faces. Use if faces drift toward realistic lips/noses.
+Medium: 2d_anime
+Description: 2D Japanese anime, gentle watercolor backgrounds, thin clean linework, soft cel shading, restrained bloom, expressive anime facial acting, consistent character designs. All backgrounds remain hand-painted 2D.
+Negative style: photoreal backgrounds; 3D character rendering.
 
-```
-2D Japanese TV anime, flat cel shading with two-tone shadows, clean uniform lineart, small simple anime mouths (no realistic lips), minimal nose, large expressive eyes, bright flat-colored backgrounds, comedic chibi reaction cut-ins allowed, consistent character models, full vibrant color. EVERYTHING must be hand-drawn 2D anime — no photorealism, no 3D render.
-```
+## Flat cel 2D
 
-## Live-Action Drama (optional, not anime)
-Same cast as real actors — a fun "live-action adaptation" spin-off. Needs realistic sheets (or the anime sheets + "as real actors").
+Medium: 2d_anime
+Description: Flat two-tone 2D cel-shaded animation, clear uniform outlines, simple stylized faces, bright limited palette, readable silhouettes and fluid key poses.
+Negative style: photoreal human skin; 3D render look.
 
-```
-Live-action cinematic drama, real actors with natural skin texture, shallow depth of field, soft film grain, warm practical lighting, 35mm film look, natural color grade, consistent actor appearance in every shot. No anime, no cartoon, no 3D render look.
-```
+## Cinematic stylized drama
+
+Medium: stylized_3d
+Description: Stylized cinematic 3D character animation, deep yet soft shadows, textured surroundings, natural directional light, restrained grading, physically grounded poses and camera movement.
+Negative style: hyper-real human features; visual identity drift.
+
+## Live action (optional)
+
+Medium: live_action
+Description: Photographed actors, natural physical behavior, coherent cinematography and lighting; do not impose animal-animation appearance unless the user deliberately requests a creature/puppet treatment.
+Negative style: anime cel render; cartoon lineart.
+
+Do not paste old "EVERYTHING ... hand-drawn 2D ... no 3D render" into stylized_3d series.
