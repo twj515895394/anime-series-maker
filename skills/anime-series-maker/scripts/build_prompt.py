@@ -1,202 +1,204 @@
 #!/usr/bin/env python3
-"""Build and validate one prompt per clip from series.json + episode.json.
+"""Compile a portable, offline V1 prompt pack from approved-or-draft text assets.
 
-    python3 build_prompt.py series.json ep07/episode.json [--out ep07/prompts]
+No Renoise, API, MCP, model routing, external imports or generation calls.
+This command compiles drafts; final release approval is enforced by export_prompt_pack.py.
 
-Writes <out>/clipNN.txt and <out>/tasks.json (model, duration, ratio, references per clip,
-ready to hand to estimate_cost / create_tasks). Exits 1 on any validation error and writes nothing.
-Python 3 stdlib only.
+Usage:
+ python build_prompt.py my-series/series.json my-series/episodes/ep001/episode.json \
+     --shots my-series/episodes/ep001/shots.json --out my-series/episodes/ep001/prompts
 """
 import argparse
+import hashlib
 import json
+import os
 import re
 import sys
 from pathlib import Path
+from validate_project import load_bundle, validate_bundle
 
-PLACEHOLDER = re.compile(r"material:0+\b|【|】|\{\{|\}\}|TODO|TBD|<[A-Z_ ]+>")
-
-
-def load(path):
-    try:
-        return json.loads(Path(path).read_text(encoding="utf-8"))
-    except Exception as e:
-        sys.exit(f"ERROR: cannot read {path}: {e}")
+COMPILER_VERSION = "1.0.0"
+PLACEHOLDER = re.compile(r"\b(?:TODO|TBD)\b|\{\{[^}]*\}\}|material:0+\b", re.I)
 
 
-def cap(text):
-    """Capitalise the first letter and end with a full stop (empty stays empty)."""
-    text = text.strip().rstrip(".")
-    return f"{text[0].upper()}{text[1:]}." if text else ""
+def stable_text(value):
+    if isinstance(value, str):
+        return value.strip()
+    return json.dumps(value, ensure_ascii=False, sort_keys=True)
 
 
-def fmt_t(x):
-    return f"{x:g}s"
+def format_state(state):
+    return "; ".join(f"{k}: {stable_text(v)}" for k, v in sorted((state or {}).items())) or "No special state specified"
 
 
-def build_clip(series, clip, cast):
-    lang = series.get("language", "Japanese")
-    dur = clip["duration"]
-    lines = []
-    lines.append(
-        f"Create a continuous {dur}-second {series.get('genre', '2D anime')} scene. "
-        "Follow the exact shot pacing, comedic timing and emotional rhythm below, with smooth scene "
-        f"continuity from shot to shot. {cap(series.get('tone', ''))}".strip()
-    )
-    mapping = " ".join(
-        f"@{c['material']} = character sheet of the {c['label']} (use only this design: face, hair, outfit, shoes)."
-        for c in cast
-    )
-    lines.append(
-        f"Reference mapping: {mapping} The sheets are design references only — never show the sheet "
-        "layout, white background, panels or any text from them."
-    )
-    lines.append("")
-    lines.append("Maintain exact character consistency throughout all shots —")
-    for c in cast:
-        lines.append(
-            f"The {c['label']} (@{c['material']}): {c['look'].rstrip('.')}. "
-            f"{cap(c['personality'])} Same design in every frame."
-        )
-    lines.append("")
-    lines.append(f"STYLE: {series['style']}")
-    voices = " ".join(f"{c['label']}: {c['voice'].rstrip('.')}." for c in cast)
-    lines.append(
-        f"VOICES & AUDIO: All dialogue is spoken in natural {lang.upper()} by anime voice actors with clear "
-        f"lip-sync. {voices} {series.get('audio', '')}".strip()
-    )
-    setting = clip.get("setting", "")
-    if isinstance(setting, int):
-        setting = series["settings"][setting]
-    lines.append(
-        f"Preserve continuity of the setting: {setting} — consistent palette and lighting across the entire scene."
-    )
-    lines.append("")
-    lines.append(f"FOCUS: {clip['focus']}")
-    lines.append("")
-    lines.append("CHARACTER DESIGN:")
-    for c in cast:
-        arc = clip.get("arcs", {}).get(c["id"])
-        if arc:
-            lines.append(f"{c['label']} — {arc}")
-    for i, s in enumerate(clip["shots"], 1):
-        a, b = s["t"]
-        lines.append(f"[{fmt_t(a)} – {fmt_t(b)}] SHOT {i} — {s['title'].upper()}. {s['action']}")
-        lines.append(f"Dialogue: {s.get('dialogue') or 'No spoken dialogue.'}")
-        lines.append(f"SFX: {s['sfx'].rstrip('.')}. Camera: {s['camera'].rstrip('.')}.")
-    lines.append("")
-    lines.append(f"FINAL VISUAL: {clip['final_visual']}")
-    lines.append(f"On-screen ending mood: {clip['ending_mood']}")
-    lines.append(series.get("negative", "NO SUBTITLES. NO ON-SCREEN TEXT OR CAPTIONS. NO SPEECH BUBBLES."))
-    lines.append(series.get("closing", "").replace("{language}", lang))
-    return "\n".join(lines).strip() + "\n"
+def sha256(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def validate(series, ep):
-    errs = []
-    chars = {c["id"]: c for c in series.get("characters", [])}
-    for c in chars.values():
-        for k in ("label", "material", "look", "personality", "voice"):
-            if not str(c.get(k, "")).strip():
-                errs.append(f"character '{c['id']}': missing {k}")
-        if not re.fullmatch(r"material:[1-9]\d*", str(c.get("material", ""))):
-            errs.append(f"character '{c['id']}': material must be 'material:<id>' of the uploaded sheet (got {c.get('material')!r})")
-        if len(c.get("look", "")) < 120:
-            errs.append(f"character '{c['id']}': look is too short — restate hair, eyes, every outfit piece, shoes, props")
-    if not series.get("style"):
-        errs.append("series: style is empty")
-    clips = ep.get("clips", [])
-    if not clips:
-        errs.append("episode: no clips")
-    max_dur = series.get("max_clip_seconds", 15)
-    for n, clip in enumerate(clips, 1):
-        tag = f"clip {n:02d}"
-        dur = clip.get("duration", 0)
-        if not 1 <= dur <= max_dur:
-            errs.append(f"{tag}: duration {dur} outside 1–{max_dur}s (set series.max_clip_seconds from list_models)")
-        for cid in clip.get("cast", []):
-            if cid not in chars:
-                errs.append(f"{tag}: unknown cast id '{cid}'")
-        if not clip.get("cast"):
-            errs.append(f"{tag}: empty cast")
-        for k in ("focus", "final_visual", "ending_mood"):
-            if not str(clip.get(k, "")).strip():
-                errs.append(f"{tag}: missing {k}")
-        st = clip.get("setting", "")
-        if isinstance(st, int) and not 0 <= st < len(series.get("settings", [])):
-            errs.append(f"{tag}: setting index {st} not in series.settings")
-        prev_end = 0
-        shots = clip.get("shots", [])
-        if not shots:
-            errs.append(f"{tag}: no shots")
-        for i, s in enumerate(shots, 1):
-            for k in ("t", "title", "action", "sfx", "camera"):
-                if not s.get(k):
-                    errs.append(f"{tag} shot {i}: missing {k}")
-            if "dialogue" not in s:
-                errs.append(f"{tag} shot {i}: missing dialogue (use \"\" for none)")
-            t = s.get("t") or [0, 0]
-            if len(t) != 2 or t[0] >= t[1]:
-                errs.append(f"{tag} shot {i}: bad time range {t}")
-                continue
-            if abs(t[0] - prev_end) > 0.01:
-                errs.append(f"{tag} shot {i}: starts at {t[0]}s but previous shot ends at {prev_end}s")
-            prev_end = t[1]
-        if shots and abs(prev_end - dur) > 0.01:
-            errs.append(f"{tag}: shots end at {prev_end}s but duration is {dur}s")
-    return errs
+def assets_for_shot(series, shot):
+    """Explicit ref assets first. Otherwise prefer relevant view for each character."""
+    asset_map = {}
+    per_character = {}
+    for actor in series["characters"]:
+        per_character[actor["id"]] = actor.get("reference_assets", [])
+        for ref in actor.get("reference_assets", []):
+            asset_map[ref["asset_id"]] = ref
+    explicit = shot.get("references", [])
+    if explicit:
+        return [asset_map[r] for r in explicit if r in asset_map]
+    text = (shot.get("framing","") + " " + shot.get("camera",{}).get("angle","")).lower()
+    if any(x in text for x in ("close-up", "close up", "face", "特写")):
+        preference = ["face_closeup", "three_quarter", "front", "montage"]
+    elif any(x in text for x in ("back", "rear", "背")):
+        preference = ["back", "three_quarter", "front", "montage"]
+    elif any(x in text for x in ("side", "profile", "侧")):
+        preference = ["side", "three_quarter", "front", "montage"]
+    else:
+        preference = ["front", "three_quarter", "side", "montage"]
+    selected = []
+    for cid in shot.get("cast", []):
+        refs = per_character.get(cid, [])
+        for kind in preference:
+            candidate = next((a for a in refs if a.get("type") == kind), None)
+            if candidate:
+                selected.append(candidate)
+                break
+    return selected
+
+
+def render_common(series, episode, shot, refs):
+    cast = {c["id"]: c for c in series["characters"]}
+    locations = {s["id"]:s for s in series.get("locations",[])}
+    scenes = {s["id"]:s for s in episode.get("scenes",[])}
+    scene = scenes[shot["scene_id"]]
+    location = locations.get(scene.get("location_id"), {})
+    vs = series["visual_style"]
+    lines = [
+        f"[SHOT] {shot['shot_id']} | {shot['time']['start_s']}–{shot['time']['end_s']} seconds",
+        f"[INTENT] {shot['action']['goal']}",
+        "[REFERENCE ASSETS]"
+    ]
+    if refs:
+        for ref in refs:
+            lines.append(f"- {ref['asset_id']} ({ref['type']}): {ref['path']} — design reference only; never render reference-sheet panels")
+    else:
+        lines.append("- No file references provided; use the character identity description below. Do not invent reference assets.")
+    lines += ["[CHARACTERS / IDENTITY LOCK]"]
+    for cid in shot["cast"]:
+        actor = cast[cid]
+        lock = actor["identity_lock"]
+        profile = actor.get("performance_profile", {})
+        lines += [
+            f"- {actor['label']} [id={cid}; species={actor.get('species','unspecified')}; form={actor.get('form','unspecified')}]:",
+            "  KEEP: " + "; ".join(lock.get("must_keep", [])),
+            "  AVOID: " + "; ".join(lock.get("must_avoid", [])),
+            "  PERFORMANCE: " + stable_text(profile),
+            "  PERSONALITY: " + actor.get("personality", ""),
+        ]
+    lines += [
+        "[STYLE]",
+        vs["description"],
+        "Medium: " + vs["medium"] + "; aspect ratio: " + vs["aspect_ratio"],
+        "[ENVIRONMENT]",
+        location.get("description", "Setting follows the episode storyboard."),
+        "[START STATE]", format_state(shot["action"].get("continuity_in", {})),
+        "[ACTION BEATS]",
+    ]
+    for i, action in enumerate(shot["action"].get("beats", []), 1):
+        lines.append(f"{i}. {action}")
+    cam = shot["camera"]
+    lines += [
+        "[CAMERA]",
+        f"Framing: {shot['framing']}; angle: {cam.get('angle','static')}; movement: {cam.get('motion','static')}.",
+        "[PERFORMANCE]",
+        f"Expression: {shot.get('expression','')} ; gaze: {shot.get('gaze','')}.",
+    ]
+    dialogues = {line.get("id"):line for line in episode.get("dialogue",[])}
+    lines.append("[DIALOGUE / AUDIO GUIDANCE — TEXT ONLY, NO AUDIO GENERATED]")
+    for rid in shot.get("dialogue_refs", []):
+        line = dialogues.get(rid, {})
+        lines.append(f"{line.get('speaker','')}: {line.get('text','')} [{line.get('delivery','natural')}]")
+    if not shot.get("dialogue_refs"):
+        lines.append("No required dialogue.")
+    if shot.get("sound_cues"):
+        lines.append("SFX: " + "; ".join(shot["sound_cues"]))
+    lines += [
+        "[END STATE]",
+        format_state(shot["action"].get("continuity_out", {})),
+        "Transition: " + shot.get("transition_to_next", "end"),
+        "[NEGATIVE CONSTRAINTS]",
+        "; ".join(vs.get("negative_style", [])) + "; avoid extra limbs, anatomy drift, unintended captions or logos.",
+    ]
+    return "\n".join(lines).strip()+"\n"
+
+
+def render_frame(series, episode, shot, refs, target):
+    content = render_common(series, episode, shot, refs)
+    action = shot["action"]
+    if target == "first_frame":
+        instruction = f"STILL IMAGE ONLY — first frame of shot {shot['shot_id']}. Show exactly the START STATE, before the action begins."
+    elif target == "last_frame":
+        instruction = f"STILL IMAGE ONLY — final frame of shot {shot['shot_id']}. Show exactly the END STATE after the described action."
+    else:
+        instruction = f"STILL IMAGE ONLY — key action pose of shot {shot['shot_id']}; capture its central beat: {action['beats'][len(action['beats'])//2]}."
+    return instruction+"\n\n"+content
+
+
+def compile_bundle(series, episode, shots, series_path, episode_path, shots_path, out):
+    """Compile all files after validation. Return manifest dictionary."""
+    refs = [series_path, episode_path, shots_path]
+    source_hashes = {name: sha256(path) for name, path in zip(("series","episode","shots"), refs)}
+    manifest = {"schema_version": "1.0", "episode_id": episode["episode_id"],
+                "compiler_version": COMPILER_VERSION, "source_hashes": source_hashes, "prompts": []}
+    out = Path(out)
+    out.mkdir(parents=True, exist_ok=True)
+    for shot in shots["shots"]:
+        shid = shot["shot_id"]
+        references = assets_for_shot(series,shot)
+        for target in dict.fromkeys(shot.get("prompt_targets", ["video"])):
+            content = render_common(series,episode,shot,references) if target == "video" else render_frame(series,episode,shot,references,target)
+            if PLACEHOLDER.search(content):
+                raise ValueError(f"Unresolved placeholder in shot {shid} ({target})")
+            filename = f"{shid}.{target.replace('_','-')}.md"
+            path = out / filename
+            path.write_text(content, encoding="utf-8")
+            manifest["prompts"].append({
+                "shot_id":shid, "prompt_type":target,
+                "path":os.path.relpath(path, Path(episode_path).parent).replace(os.sep,"/"),
+                "reference_asset_ids":[r["asset_id"] for r in references],
+                "duration_s":shot["time"]["end_s"]-shot["time"]["start_s"],
+                "aspect_ratio":series["visual_style"]["aspect_ratio"],
+                "source_hashes":source_hashes
+            })
+    (Path(episode_path).parent/"prompt-manifest.json").write_text(
+        json.dumps(manifest,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+    return manifest
 
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("series")
-    ap.add_argument("episode")
-    ap.add_argument("--out", help="output folder (default: <episode dir>/prompts)")
-    args = ap.parse_args()
-
-    series, ep = load(args.series), load(args.episode)
-    errs = validate(series, ep)
-    chars = {c["id"]: c for c in series.get("characters", [])}
-    prompts = []
-    if not errs:
-        for n, clip in enumerate(ep["clips"], 1):
-            cast = [chars[cid] for cid in clip["cast"]]
-            p = build_clip(series, clip, cast)
-            if len(p) < 1500:
-                errs.append(f"clip {n:02d}: prompt only {len(p)} chars — something is missing")
-            m = PLACEHOLDER.search(p)
-            if m:
-                errs.append(f"clip {n:02d}: placeholder left in prompt: {m.group(0)!r}")
-            prompts.append((n, clip, cast, p))
-    if errs:
-        print("NOT BUILT — fix these first:", file=sys.stderr)
-        for e in errs:
-            print("  -", e, file=sys.stderr)
-        sys.exit(1)
-
-    out = Path(args.out) if args.out else Path(args.episode).parent / "prompts"
-    out.mkdir(parents=True, exist_ok=True)
-    tasks = []
-    for n, clip, cast, p in prompts:
-        (out / f"clip{n:02d}.txt").write_text(p, encoding="utf-8")
-        task = {
-            "label": f"{ep.get('id', 'ep')} clip {n:02d}",
-            "idempotencyKey": f"{ep.get('id', 'ep')}-clip{n:02d}",
-            "duration": clip["duration"],
-            "ratio": series.get("ratio", "16:9"),
-            "audioGeneration": True,
-            "references": [{"ref": c["material"], "role": "reference_image"} for c in cast],
-            "promptFile": str(out / f"clip{n:02d}.txt"),
-        }
-        if series.get("model"):
-            task["model"] = series["model"]
-        if series.get("resolution"):
-            task["resolution"] = series["resolution"]
-        tasks.append(task)
-        print(f"OK clip{n:02d}.txt  {clip['duration']}s  {len(clip['shots'])} shots  {len(p)} chars  cast={[c['id'] for c in cast]}")
-    (out / "tasks.json").write_text(json.dumps(tasks, ensure_ascii=False, indent=2), encoding="utf-8")
-    total = sum(c["duration"] for c in ep["clips"])
-    print(f"{len(prompts)} clips, {total}s total -> {out}/tasks.json")
+    ap = argparse.ArgumentParser(description="Offline, model-neutral shot prompt compiler")
+    ap.add_argument("series",type=Path)
+    ap.add_argument("episode",type=Path)
+    ap.add_argument("--shots",type=Path,required=True)
+    ap.add_argument("--out",type=Path)
+    args=ap.parse_args()
+    try:
+        series,episode,shots=load_bundle(args.series,args.episode,args.shots)
+        diagnostics=validate_bundle(series,episode,shots,args.series.parent)
+        failures=[d for d in diagnostics if d["severity"]=="ERROR"]
+        for d in diagnostics:
+            print(f"{d['severity']} {d['code']} [{d.get('shot_id') or d['artifact']}]: {d['message']}", file=sys.stderr)
+        if failures:
+            print(f"Not built: {len(failures)} structural errors",file=sys.stderr)
+            return 1
+        out=args.out or args.episode.parent/"prompts"
+        manifest=compile_bundle(series,episode,shots,args.series,args.episode,args.shots,out)
+        print(f"OK {len(manifest['prompts'])} prompts → {out} (text only; nothing generated)")
+        return 0
+    except (ValueError,OSError,KeyError,TypeError) as exc:
+        print(f"ERROR {exc}",file=sys.stderr)
+        return 2
 
 
-if __name__ == "__main__":
-    main()
+if __name__=="__main__":
+    sys.exit(main())
