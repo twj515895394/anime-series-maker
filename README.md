@@ -36,7 +36,11 @@ cd skills/anime-series-maker
 python scripts/validate_project.py my-series --episode ep001
 python scripts/build_prompt.py my-series/series.json my-series/episodes/ep001/episode.json --shots my-series/episodes/ep001/shots.json
 python scripts/export_prompt_pack.py my-series/episodes/ep001 --draft
-# For final export, set series/episode/shots/prompts statuses to approved in review.json
+# After explicit human confirmation, record hash-bound approvals in order:
+python scripts/review_artifact.py my-series/episodes/ep001 --artifact series
+python scripts/review_artifact.py my-series/episodes/ep001 --artifact episode
+python scripts/review_artifact.py my-series/episodes/ep001 --artifact shots
+python scripts/review_artifact.py my-series/episodes/ep001 --artifact prompts
 python scripts/export_prompt_pack.py my-series/episodes/ep001
 ~~~
 
