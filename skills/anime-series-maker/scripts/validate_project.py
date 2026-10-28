@@ -6,12 +6,14 @@ use validate_bundle(); diagnostic severity is ERROR or WARN.
 """
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
 VERSION = "1.0"
 ALLOWED_TARGETS = {"video", "first_frame", "last_frame", "keyframe"}
 CONTINUOUS = {"continuous_cut", "match_cut", "continue"}
+SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 
 
 def diagnostic(severity, code, artifact, field, message, shot_id=None):
@@ -71,7 +73,7 @@ def validate_bundle(series, episode, shots, root, check_assets=True):
     characters, assets = {}, {}
     for ci, char in enumerate(series.get("characters", []) or []):
         cid = char.get("id", "")
-        if not cid or cid in characters:
+        if not isinstance(cid, str) or not SAFE_ID.fullmatch(cid) or cid in characters:
             add("ERROR", "DUPLICATE_CHARACTER", "series", f"characters[{ci}].id", "Missing or duplicated character id")
             continue
         characters[cid] = char
@@ -83,7 +85,7 @@ def validate_bundle(series, episode, shots, root, check_assets=True):
             add("WARN", "PERFORMANCE_INCOMPLETE", "series", f"characters[{ci}].performance_profile", "Specify locomotion and usable hands/paws")
         for ri, asset in enumerate(char.get("reference_assets", []) or []):
             aid, p = asset.get("asset_id"), asset.get("path")
-            if not aid or aid in assets:
+            if not isinstance(aid, str) or not SAFE_ID.fullmatch(aid) or aid in assets:
                 add("ERROR", "DUPLICATE_ASSET", "series", f"characters[{ci}].reference_assets[{ri}]", "Reference asset id missing or duplicated")
                 continue
             if not is_relative_asset(root, p):
@@ -103,14 +105,14 @@ def validate_bundle(series, episode, shots, root, check_assets=True):
     locations = {}
     for index, item in enumerate(series.get("locations", []) or []):
         lid = item.get("id")
-        if not lid or lid in locations:
+        if not isinstance(lid, str) or not SAFE_ID.fullmatch(lid) or lid in locations:
             add("ERROR", "DUPLICATE_LOCATION", "series", f"locations[{index}].id", "Missing/duplicate location id")
         else:
             locations[lid] = item
     scenes = {}
     for i, scene in enumerate(episode.get("scenes", []) or []):
         sid = scene.get("id")
-        if not sid or sid in scenes:
+        if not isinstance(sid, str) or not SAFE_ID.fullmatch(sid) or sid in scenes:
             add("ERROR", "DUPLICATE_SCENE", "episode", f"scenes[{i}].id", "Missing/duplicate scene id")
             continue
         scenes[sid] = scene
@@ -124,7 +126,7 @@ def validate_bundle(series, episode, shots, root, check_assets=True):
     timeline, shot_ids = [], set()
     for idx, shot in enumerate(shots.get("shots", []) or []):
         sid = shot.get("shot_id")
-        if not sid or sid in shot_ids:
+        if not isinstance(sid, str) or not SAFE_ID.fullmatch(sid) or sid in shot_ids:
             add("ERROR", "DUPLICATE_SHOT", "shots", f"shots[{idx}].shot_id", "Missing or duplicate shot id")
             sid = sid or f"index-{idx}"
         shot_ids.add(sid)
@@ -165,6 +167,8 @@ def validate_bundle(series, episode, shots, root, check_assets=True):
             add("ERROR", "SHOT_TIME", "shots", "time", "Invalid start_s or end_s", sid)
     if not timeline:
         add("ERROR", "NO_SHOTS", "shots", "shots", "At least one valid shot required")
+    if timeline != sorted(timeline, key=lambda x: (x[0], x[1])):
+        add("ERROR", "SHOT_ORDER", "shots", "shots", "Shots must be ordered by start time")
     timeline.sort(key=lambda x: (x[0], x[1]))
     if timeline and abs(timeline[0][0]) > .05:
         add("ERROR", "START_NOT_ZERO", "shots", "time", "First shot must start at 0")
