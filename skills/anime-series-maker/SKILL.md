@@ -93,9 +93,13 @@ Do NOT call any video/image/audio generation backend at this stage, even if a co
 
 ## Stage S6 — Export text pack and archive
 
-The reviewer records status=approved for series, episode, shots and prompts in review.json, with notes/revisions as desired. Final export requires these approvals, and build source hashes must still match. Incomplete projects can be exported with --draft and marked visibly as NOT APPROVED:
+After the user explicitly approves each stage, record a hash-bound approval using review_artifact.py. Do not invoke this command automatically or infer consent from prior chat; the user must approve the current content. Final export requires all four current approvals. Incomplete projects can be exported with --draft and marked visibly as NOT APPROVED:
 
 ~~~bash
+python scripts/review_artifact.py my-series/episodes/ep001 --artifact series
+python scripts/review_artifact.py my-series/episodes/ep001 --artifact episode
+python scripts/review_artifact.py my-series/episodes/ep001 --artifact shots
+python scripts/review_artifact.py my-series/episodes/ep001 --artifact prompts
 python scripts/export_prompt_pack.py my-series/episodes/ep001 --out my-series/episodes/ep001/export
 # For explicitly requested unapproved text drafts:
 python scripts/export_prompt_pack.py my-series/episodes/ep001 --draft
@@ -107,7 +111,7 @@ Delivery: export/shot-list.md, export/prompt-pack.md, export/continuity-report.m
 
 A review.json artifact status is draft / needs_review / approved / stale / rejected. On any material upstream modification, mark dependent artifacts as stale and regenerate affected prompts. Source-hash comparison in the exporter detects out-of-date compiled prompts even if someone forgot to mark stale. For a new episode reuse series.json; never rewrite its cast silently.
 
-Current v1 implementation provides basic approval gating and source-hash freshness; automatic incremental invalidation of all content dependencies is a later enhancement. If review history is absent, do not infer approval from the chat conversation.
+Current V1 records content hashes for every approved artifact and invalidates downstream approvals on reapproval of changed inputs. This is a local file-based review mechanism, not a multi-user workflow server. If review history is absent, do not infer approval from the chat conversation.
 
 ## Output quality guardrails
 
