@@ -119,6 +119,43 @@ class PromptOnlyV1Tests(unittest.TestCase):
             approve(self.epdir,artifact)
         self.assertEqual(export_episode(self.epdir,self.epdir/"export"),4)
 
+    def test_24_second_anthro_storyboard_end_to_end(self):
+        """24s scenario: arrival, pick up phone, react, depart."""
+        self.episode["target_duration_s"]=24
+        first,second=self.shots["shots"]
+        first["time"]["end_s"]=6
+        second["time"]={"start_s":6,"end_s":12}
+        second["transition_to_next"]="continuous_cut"
+        third=copy.deepcopy(second)
+        third.update({"shot_id":"sh003","time":{"start_s":12,"end_s":18},
+                      "framing":"face close-up","expression":"惊讶，耳朵竖起",
+                      "prompt_targets":["video","keyframe"],"transition_to_next":"continuous_cut"})
+        third["action"]["goal"]="阅读紧急消息，震惊地抬起耳朵"
+        third["action"]["beats"]=["目光锁定屏幕","耳朵竖起","保持手机在右爪中"]
+        third["action"]["continuity_in"]=copy.deepcopy(second["action"]["continuity_out"])
+        third["action"]["continuity_out"]=copy.deepcopy(third["action"]["continuity_in"])
+        fourth=copy.deepcopy(third)
+        fourth.update({"shot_id":"sh004","time":{"start_s":18,"end_s":24},
+                       "framing":"wide shot","expression":"坚定",
+                       "prompt_targets":["video"],"transition_to_next":"end"})
+        fourth["action"]["goal"]="将手机放回桌上后离开办公室"
+        fourth["action"]["beats"]=["将手机放在桌上","右爪松开手机","转身走到门前"]
+        fourth["action"]["continuity_in"]=copy.deepcopy(third["action"]["continuity_out"])
+        fourth["action"]["continuity_out"]={
+            "position":"door","orientation":"toward exit","right_hand":"free",
+            "prop_owner":{"phone":"desk"}}
+        self.shots["shots"]=[first,second,third,fourth]
+        self.persist()
+        self.assertFalse([d for d in self.issues() if d["severity"]=="ERROR"])
+        manifest=self.compile()
+        self.assertEqual(len(manifest["prompts"]),7)
+        for artifact in ("series","episode","shots","prompts"):
+            approve(self.epdir,artifact)
+        self.assertEqual(export_episode(self.epdir,self.epdir/"export"),7)
+        prompt=(self.epdir/"export"/"prompt-pack.md").read_text(encoding="utf-8")
+        self.assertIn("sh004",prompt)
+        self.assertIn("phone",prompt)
+
     def test_2d_regression_does_not_force_3d(self):
         self.series["visual_style"]["medium"]="2d_anime"
         self.series["visual_style"]["description"]="2D cel animation with soft watercolor backgrounds"
