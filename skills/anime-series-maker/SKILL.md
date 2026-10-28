@@ -1,152 +1,125 @@
 ---
 name: anime-series-maker
-description: Turn 2–3 character sheets + one line of story into a finished, postable 2D anime episode (15–90 s) — and keep making the next one with the same cast. Plans the hook, writes a per-second shot script with in-character dialogue, generates each ≤15 s clip on Renoise (Seedance-class video models via Renoise MCP), checks every clip, edits the cut, makes an Instagram-safe cover and writes the caption. Use when the user says "make an anime episode", "next episode", "anime series", "fan anime", "AI anime short", "番剧", "动漫短片", "下一集", "连载", "同人动画", "アニメ", or hands over character sheets and a story idea. NOT for remaking a specific reference video shot-for-shot (use a remake skill), or for realistic talking-head / UGC videos.
+description: Plan character-driven animation and episodic series; maintain reusable character identity, design premise/script/storyboards, track motion continuity, and export portable shot-level image/video prompts. Includes stylized 3D anthropomorphic characters, 2D anime and other styles. Prompt-only and offline: does not create images, videos or audio, and never requires Renoise MCP or any generation API. Use for 动漫短剧、番剧、拟人化角色、3D动画、角色一致性、剧情、剧本、分镜、逐镜头提示词、下一集.
 ---
 
-# Anime Series Maker
+# Anime Series Maker · V1 Prompt-only
 
-One series = one fixed cast, one fixed art style, one fixed voice setup, stored in `series.json`.
-Every episode reuses it, so episode 30 looks like episode 1.
+**Goal:** deliver a complete, reviewable text production pack; NOT a finished video. No generation, model routing, account lookup, billing, uploads, backend tasks, downloading, editing or publishing. The author may copy prompts into any external tool later, outside this skill.
 
-The pipeline was built while making a fan-anime series on Instagram (top episodes: 651K / 546K / 346K views).
-Every rule in `references/pitfalls.md` is a mistake that cost real credits once. Read it before generating anything.
+Read the key references when applicable:
+- references/anthro-character.md — 3D anthropomorphic identity, anatomy, hand/paw, ears and tail.
+- references/storyboard.md — story beats, shot grammar, pacing and frame planning.
+- references/action-continuity.md — multi-shot motion, prop handoff, orientation, fatigue.
+- references/prompt-portability.md — backend-neutral prompt composition.
+- references/style-presets.md — optional medium-specific style choices.
+- references/hooks.md — optional social-media comedy hooks only when suitable.
 
-```
-0. setup check ─► 1. series bible (once) ─► 2. hook ─► 3. script ─► 4. build + validate prompts
-   ─► 5. quote credits → user says yes → clip 1 → user checks → rest
-   ─► 6. QA every clip (retake whole clips) ─► 7. edit ─► 8. cover ─► 9. caption ─► 10. log episode
-```
+## Input and project organization
 
-Work in a project folder chosen by the user (default `./my-series/`):
+Default workspace: ./my-series/ (user may choose another directory).
 
-```
-my-series/
-  series.json            # the bible — cast, style, voices, settings, running gags
-  sheets/                # character sheets (design references)
-  episodes.json          # log of every episode: premise, hook, views (to avoid repeats, learn what works)
-  ep07-cat-girl/
-    episode.json         # the script
-    prompts/clip01.txt … # built by scripts/build_prompt.py
-    clips/clip01.mp4 …   # downloaded results
-    ep07_final.mp4  ep07_cover.png  caption.md
-```
+    my-series/
+      project.json
+      series.json
+      assets/characters/<id>/...
+      episodes.json                    # optional manually maintained history
+      episodes/ep001/
+        episode.json
+        shots.json
+        review.json
+        prompts/
+          sh001.video.md
+          sh001.first-frame.md         # optional
+          sh001.last-frame.md          # optional
+        prompt-manifest.json
+        export/
+          shot-list.md
+          prompt-pack.md
+          continuity-report.md
 
----
+Templates are in templates/*.json; v1 schemas in schemas/*.schema.json. Always use actual local relative file paths and stable asset IDs. NEVER invent image files, claim that montage views were already cropped, or silently replace a user-provided face reference.
 
-## 0 · Setup check (skip what already works)
+Series is the single source of truth for a character's fixed identity. Episode describes story beats, scene and dialogue. Shots describe camera, time, actions, state and reference mapping. Never make a shot an immutable cloud-model clip; its duration is a storytelling choice.
 
-- **Renoise MCP** connected: call `get_account`. Balance 0 → stop and tell the user generation needs credits.
-  Not connected → point them to the README "Connect Renoise" table.
-- `ffmpeg` / `ffprobe` on PATH, `python3` with `Pillow` (`python3 -m pip install pillow`).
-- Before choosing any model: `load_skill model-routing`, then `list_models` for the chosen model's real limits
-  (max duration per clip, ratios, whether it generates audio). Don't trust model names from memory.
+## Stage S0 — Prepare the workspace (no remote setup)
 
-## 1 · Series bible (first time only)
+Check existing project files. If nothing exists, ask for the minimum missing information in one compact message: character images/assets, the intended story, format (standalone or ongoing), medium (2D/3D/stylized), aspect ratio, dialogue language, approximate runtime and desired motion complexity. User-supplied references take precedence; use a neutral default for any optional input.
 
-Ask everything in **one** message:
+Create a project.json with workflow_mode = prompt_only, plus series.json, episode.json and shots.json from the v1 templates. If restoring a project, inspect the previous files and review status; do not overwrite approved content.
 
-1. **Cast** — 2–3 characters. Character sheets ready? (turnaround / full-body design sheets work best)
-   - No sheets → generate them first (image model from model-routing, 1K, plain light background, front + side + back + 3 expressions, no text). Show them; iterate until approved. Sheets are the single biggest factor in consistency.
-2. **Personality + voice** per character — one line each (e.g. "proud rich-girl tsundere, blushes instantly, voice cracks when flustered").
-3. **Art style** — offer the presets in `references/style-presets.md` with a recommendation (default: Soft Watercolor).
-4. **Dialogue language** — Japanese is the default for anime (sounds most "anime" to every audience); English / Chinese / Korean also work.
-5. **Ratio** — 16:9 (YouTube / X, default) or 9:16 (Reels / TikTok / Shorts).
+No Renoise, no MCP, no ffmpeg, no GPU or API credentials are required.
 
-Then:
-- Upload the sheets with `upload_files` → write each `material:<id>` into `series.json`.
-- Fill `series.json` from `templates/series.json`. The `look` field must restate every visible design detail
-  (hair length/colour/parting, eyes, uniform pieces, shoes, props). The model re-reads it every clip — vague looks drift.
+## Stage S1 — Series Bible and asset mapping [APPROVAL]
 
-## 2 · Hook first, then plot
+Record character name/ID, species, anthropomorphic form, style, outfit, color/fur, face, eyes, ears, tail, hands/paws, body proportions, personality, voice description and recurring wardrobe/props. For each actual reference, record its asset_id, view type and path. View types include front, back, side, three_quarter, face_closeup, expressions, pose and montage.
 
-Short anime lives or dies on the premise. Before writing any script, offer **3 one-line premises with one top pick**,
-using `references/hooks.md` (formulas that actually got views: transformation, fake-out that fails in 3 seconds,
-catchphrase ×3, "she wants X but can't admit it", a tiny everyday moment with the viewer as "you").
-Check `episodes.json` so you never repeat a premise, and reuse running gags from `series.json`.
+Show a readable summary of the character identity and reference coverage. Ask for approval before downstream writing. Explain missing views without hallucinating them. For close-up face shots, prefer a real face_closeup asset; if unavailable, warn and fall back to an existing known view.
 
-## 3 · Script → `episode.json`
+Visual medium must be explicit: the 3D anthropomorphic preset does NOT inherit 2D constraints such as "everything hand drawn" or "no 3D render". Other 2D and live-action styles remain opt-in.
 
-Copy `templates/episode.json`. Rules:
+## Stage S2 — Premises and story outline [APPROVAL]
 
-- **Clips ≤ the model's max duration** (usually 15 s). An episode is 1–6 clips. Each clip must be a complete mini-scene with its own beat; the cut between clips is a hard scene cut, never mid-action.
-- **About one shot per 2–3 s**, each with `action`, `dialogue`, `sfx`, `camera` (format in `references/prompt-framework.md`).
-- **Dialogue in the series language, in character.** Short lines (≤ ~2.5 s spoken each). Write new lines — never translate or paraphrase lines from an existing show or video.
-- **Start on the story.** No title card, no cold-open teaser. First shot = the situation.
-- End each clip on a readable reaction (blush, smirk, door slam) — it gives the editor a clean cut point.
-- Describe copyrighted characters only by appearance in prompts (the bible does this already); never put franchise or character names in prompts.
+Offer 3 concise premise choices and recommend one; their purpose is exploration, not a mandatory viral template. Respect user genre, story length, tone and audience. For episodic projects, check series continuity and any available episodes.json to avoid contradictions.
 
-Show the user the script as a compact table (time · shot · line) and wait for approval or edits.
+After selection, write an outline: setup, inciting incident, escalation, decision/turn, consequence and ending. Do not force a romance/comedy or 3-second twist when the story is dramatic/action-driven.
 
-## 4 · Build + validate prompts
+## Stage S3 — Screenplay and beats [APPROVAL]
 
-```bash
-python3 scripts/build_prompt.py my-series/series.json my-series/ep07-cat-girl/episode.json
-```
+Populate episode.json from the selected outline: episode_id/series_id, target_duration_s, premise, beats, scenes, dialogue with stable ids/speakers and optional duration estimates, start/end story state.
 
-It writes `prompts/clipNN.txt` (opening directive → reference mapping → character consistency → STYLE → VOICES → setting → FOCUS → CHARACTER DESIGN → per-shot list → FINAL VISUAL → no-text block) and **exits non-zero** if anything is wrong: missing sheet IDs, placeholders left, a shot without Dialogue/SFX/Camera, shots past the clip duration, prompt suspiciously short.
-Never submit if it fails. Never pass a prompt to `create_tasks` from a file you didn't just build and check.
+Script dialogue must follow the approved language, personalities, relationships and rhythm. Give all supporting characters IDs before reference. Identify important object transfers and costume changes in the script. Present a human-readable screenplay and wait for explicit approval.
 
-## 5 · Quote → approve → clip 1 → rest
+## Stage S4 — Storyboard and action continuity [APPROVAL]
 
-1. `estimate_cost` with every planned clip (model, duration, ratio, `audioGeneration: true`, the sheet references with role `reference_image`).
-2. Show: clips · seconds · credits · balance. **Stop and wait for the user's explicit "yes" in chat.**
-3. `create_tasks` for **clip 1 only**, `wait_tasks`, show it. Ask: characters right? voices right? style right?
-4. Only then submit the remaining clips (one `create_tasks` call, ≤10 tasks, each with an `idempotencyKey` like `ep07-clip02`).
+Populate shots.json with each shot's shot_id, scene_id, start/end seconds, cast IDs, framing, camera angle/motion, one primary action goal and ordered action beats, expression/gaze, reference_asset_ids, dialogue_refs, transition, continuity_in/out, and prompt_targets.
 
-References: every clip gets **all** sheets of the characters who appear, in the order the prompt maps them
-(`@material:<id>` in the prompt = the same material in `references`).
+For a complex action, split into preparation, locomotion, contact/impact, reaction and recovery. Record support foot/pose, left/right paws, prop owners, facing direction and fatigue when relevant. For repeated shots of the same person, maintain their animal ears/muzzle/tail and fixed costume. For cut-to-reverse-shot scenes, explain gaze and screen direction. Avoid arbitrary 2–3-second / 15-second model limits.
 
-## 6 · QA every clip
+Display a compact shot table plus continuity risks. User approves S4 before creating the final prompt pack. Optional first/last/keyframe *prompts* (not image files) should be requested for complex camera/action shots, not mandatory for every shot.
 
-`download_results` → `clips/clipNN.mp4`. For each clip check (use `analyze_media` on the task, plus your own frame grabs: `ffmpeg -ss <t> -i clip.mp4 -frames:v 1 f.jpg` at 4 points):
+## Stage S5 — Validate and compile portable prompts [APPROVAL]
 
-- [ ] Characters match the sheets (hair length & colour, eye colour, outfit, props). No sheet layout / white panels in frame.
-- [ ] No subtitles, speech bubbles or garbled text burned in.
-- [ ] Voices: right language, right gender per character, the scripted lines (not random ones).
-- [ ] Story logic: who talks faces who; cause → effect reads; the last beat lands.
-- [ ] Style stayed 2D (no sudden photoreal / 3D shots).
+The following commands are local, deterministic text operations only (run from the skill directory, or use equivalent absolute script paths):
 
-Fail → **regenerate the whole clip** (same prompt, or tighten the failing part). Never splice a partial retake into a clip — it never looks seamless. Tell the user what failed and the retake cost before resubmitting.
+~~~bash
+python scripts/validate_project.py my-series --episode ep001 --report my-series/episodes/ep001/export/continuity-report.md
+python scripts/build_prompt.py my-series/series.json my-series/episodes/ep001/episode.json --shots my-series/episodes/ep001/shots.json --out my-series/episodes/ep001/prompts
+~~~
 
-## 7 · Edit
+Errors block building or final export; warnings require user review, especially missing face assets or high-complexity pose assumptions. The generated prompts contain descriptive paths/asset IDs, not Renoise material tokens. One .video.md per shot, plus optional .first-frame.md, .last-frame.md or .keyframe.md. Inspect generated prompts with the user and record approval in review.json.
 
-```bash
-python3 scripts/assemble.py my-series/ep07-cat-girl/clips/clip0{1,2,3}.mp4 -o my-series/ep07-cat-girl/ep07_final.mp4 \
-    [--trim 1:0.2:0.4] [--bgm music.mp3 --bgm-db -20] [--watermark logo.png] [--vertical]
-```
+Do NOT call any video/image/audio generation backend at this stage, even if a connector is installed. No fabricated media preview. If the user's goal is to obtain actual clips, explicitly explain that V1 only prepares prompts.
 
-What it does (see the script header): trims dead air, normalises every clip (fps, pixel format, colour range, SAR),
-joins with **one re-encode** (never `-c copy` — Instagram's transcoder drops segments when formats change mid-file),
-exports 1080p (lanczos + light sharpen, no AI upscaling), optional BGM bed under the generated dialogue, loudness to −14 LUFS,
-then decodes the result end-to-end and writes a contact sheet of every join (`*_joins.jpg`) — look at it.
+## Stage S6 — Export text pack and archive
 
-Show the final cut to the user **before** making the cover.
+The reviewer records status=approved for series, episode, shots and prompts in review.json, with notes/revisions as desired. Final export requires these approvals, and build source hashes must still match. Incomplete projects can be exported with --draft and marked visibly as NOT APPROVED:
 
-## 8 · Cover
+~~~bash
+python scripts/export_prompt_pack.py my-series/episodes/ep001 --out my-series/episodes/ep001/export
+# For explicitly requested unapproved text drafts:
+python scripts/export_prompt_pack.py my-series/episodes/ep001 --draft
+~~~
 
-- Refs: **the character sheets first**, then one frame from the episode as the scene reference. Frames alone make faces drift toward thick-paint / dark rendering.
-- Prompt the sheets' exact art style (copy the STYLE line) and the episode's key moment; describe characters by look, no names.
-- 9:16 canvas, but Instagram's grid crops to 3:4: no title or faces in the top/bottom 15%; the scene must still run full-bleed to the edges (never ask for "plain background" there — models paint a white band).
-- `python3 scripts/cover_check.py cover.png` → shows the 3:4 crop; check it before delivering.
-- Follow `references/hooks.md` → "Cover" for title rules (or no text at all for 小红书-style covers).
+Delivery: export/shot-list.md, export/prompt-pack.md, export/continuity-report.md, prompts/*.md, prompt-manifest.json and source JSON. The package is ready to copy to a user-chosen tool, but it is NOT a produced video. Optionally log completed planning episodes in episodes.json; do not claim distribution performance without actual user data.
 
-## 9 · Caption
+## Review semantics and resumption
 
-Use `references/hooks.md` → "Captions": first line = the premise as one plain sentence aimed at "you",
-one punchline, a follow line, hashtags. Give each platform/language as its own code block.
+A review.json artifact status is draft / needs_review / approved / stale / rejected. On any material upstream modification, mark dependent artifacts as stale and regenerate affected prompts. Source-hash comparison in the exporter detects out-of-date compiled prompts even if someone forgot to mark stale. For a new episode reuse series.json; never rewrite its cast silently.
 
-## 10 · Log
+Current v1 implementation provides basic approval gating and source-hash freshness; automatic incremental invalidation of all content dependencies is a later enhancement. If review history is absent, do not infer approval from the chat conversation.
 
-Append to `episodes.json`: id, title, premise, hook line, clips, credits spent, date. When the user later tells you views,
-store them — next time, rank premise formulas by real views, not by taste.
+## Output quality guardrails
 
----
+- A character's identity does not mutate merely because they stand or gesture like a human. For anthropomorphic characters keep species-specific face, fur, ears, tail and stylized paws; do not invent human fingers or human skin.
+- Action state is explicit, not just adjectives. The right paw holding a phone at a shot's end must remain consistent in the next continuous shot.
+- Storyboard and compiled prompt both carry shot IDs. Every chosen reference file must exist if named as a local asset; if missing, show a warning or validation failure.
+- Don't inject a nonexistent face close-up, unauthorized source reference, camera view, costume, or invented scene.
+- No default soundtrack, lip-sync or subtitles are generated. Dialogue/SFX text is guidance only.
+- Distinguish deterministic JSON checks from subjective artistic QA: no claim that real video visual quality was inspected.
+- For recognizable existing copyrighted characters: modifying appearance or omitting names does not establish rights. Recommend rights review before commercial/public release.
+- Never trigger create_tasks / upload_files / estimate_cost / wait_tasks or any cloud model. V1 does not have a generation step.
 
-## Files
+## Implementation references
 
-- `references/prompt-framework.md` — the clip prompt structure, with a full worked example
-- `references/style-presets.md` — tested art-style blocks
-- `references/hooks.md` — premise formulas, cover and caption patterns
-- `references/pitfalls.md` — every expensive mistake and its fix (read before step 5)
-- `templates/series.json`, `templates/episode.json`
-- `scripts/build_prompt.py`, `scripts/assemble.py`, `scripts/cover_check.py` (Python 3 stdlib + ffmpeg; Pillow for the cover check)
+The output contracts and acceptance criteria are in docs/SPEC-V1-ANTHRO-STORYBOARD-PROMPT-ONLY.md and docs/SKILL-V1-REFACTOR-DESIGN.md at the repository root (outside the installed skill folder). These are implementation specifications, not promises of video generation.
