@@ -58,13 +58,17 @@ python scripts/build_prompt.py my-series/series.json my-series/episodes/ep001/ep
 # 未审批时，明确导出 DRAFT 文本包
 python scripts/export_prompt_pack.py my-series/episodes/ep001 --draft
 
-# 人工确认 series/episode/shots/prompts 后，把 review.json 对应状态改为 approved，再导出正式文本
+# 人工确认每个产物后，逐阶段记录带内容哈希的审批（勿自行只改 status 字段）
+python scripts/review_artifact.py my-series/episodes/ep001 --artifact series
+python scripts/review_artifact.py my-series/episodes/ep001 --artifact episode
+python scripts/review_artifact.py my-series/episodes/ep001 --artifact shots
+python scripts/review_artifact.py my-series/episodes/ep001 --artifact prompts
 python scripts/export_prompt_pack.py my-series/episodes/ep001
 ~~~
 
 注意：模板含演示用的**文字角色设定**，不包含也不伪造任何角色图片；要使用参考图必须填入实际存在的 asset_id/path。模板可在没有图片时生成 Prompt，但会报告 NO_REFERENCE_ASSETS 警告。
 
-输出包含 shot-list.md、prompt-pack.md、continuity-report.md、prompts/*.md 和 prompt-manifest.json。所有输出只是文字准备资产，**不是视频文件**。修改了任何系列、单集或镜头源文件，都需要重新编译提示词；正式导出会校验源文件 hash，阻止过期包发布。
+输出包含 shot-list.md、prompt-pack.md、continuity-report.md、prompts/*.md 和 prompt-manifest.json。所有输出只是文字准备资产，**不是视频文件**。修改了任何系列、单集或镜头源文件，都需要重新编译提示词并重新审批受影响的产物；正式导出会校验源文件和审批哈希，阻止过期包发布。
 
 ## 测试
 
