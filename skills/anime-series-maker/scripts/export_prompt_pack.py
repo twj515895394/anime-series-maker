@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 from validate_project import load_bundle, validate_bundle, render_report
 from build_prompt import sha256
+from review_artifact import expected_hashes
 
 
 def check_approval(review_path, allow_draft):
@@ -18,10 +19,13 @@ def check_approval(review_path, allow_draft):
     if not review_path.is_file():
         raise ValueError("review.json missing: final export requires approved artifacts; use --draft for draft")
     review = json.loads(review_path.read_text(encoding="utf-8"))
-    statuses = {a.get("artifact_id"): a.get("status") for a in review.get("artifacts", [])}
+    entries = {a.get("artifact_id"): a for a in review.get("artifacts", [])}
     for key in ("series", "episode", "shots", "prompts"):
-        if statuses.get(key) != "approved":
+        entry = entries.get(key, {})
+        if entry.get("status") != "approved":
             raise ValueError(f"{key} is not approved in review.json; use --draft for draft")
+        if entry.get("source_hashes") != expected_hashes(review_path.parent, key):
+            raise ValueError(f"Approval for {key} is stale; request new human approval before final export")
 
 
 def export_episode(episode_dir, out, allow_draft=False):
