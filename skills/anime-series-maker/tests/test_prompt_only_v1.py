@@ -13,6 +13,7 @@ sys.path.insert(0, str(SKILL / "scripts"))
 from validate_project import validate_bundle, load_bundle
 from build_prompt import compile_bundle, assets_for_shot
 from export_prompt_pack import export_episode
+from review_artifact import approve
 
 
 def load_template(name):
@@ -103,15 +104,20 @@ class PromptOnlyV1Tests(unittest.TestCase):
         count=export_episode(self.epdir,self.epdir/"export",allow_draft=True)
         self.assertEqual(count,4)
         self.assertIn("DRAFT", (self.epdir/"export"/"shot-list.md").read_text(encoding="utf-8"))
-        review=load_template("review.json")
-        for item in review["artifacts"]:
-            item["status"]="approved"
-        (self.epdir/"review.json").write_text(json.dumps(review),encoding="utf-8")
+        for artifact in ("series","episode","shots","prompts"):
+            approve(self.epdir,artifact)
         self.assertEqual(export_episode(self.epdir,self.epdir/"export"),4)
         self.series["characters"][0]["identity_lock"]["must_keep"].append("a blue badge on chest")
         self.persist()
         with self.assertRaisesRegex(ValueError,"stale"):
             export_episode(self.epdir,self.epdir/"export")
+        # Recompiling a new prompt alone must NOT reuse the previous human approval.
+        self.compile()
+        with self.assertRaisesRegex(ValueError,"stale"):
+            export_episode(self.epdir,self.epdir/"export")
+        for artifact in ("series","episode","shots","prompts"):
+            approve(self.epdir,artifact)
+        self.assertEqual(export_episode(self.epdir,self.epdir/"export"),4)
 
     def test_2d_regression_does_not_force_3d(self):
         self.series["visual_style"]["medium"]="2d_anime"
