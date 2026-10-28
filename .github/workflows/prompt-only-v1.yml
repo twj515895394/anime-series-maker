@@ -1,0 +1,26 @@
+name: Prompt-only V1 checks
+
+on:
+  push:
+    branches:
+      - codex/anthro-v1-implementation
+  pull_request:
+    paths:
+      - 'skills/anime-series-maker/**'
+      - '.github/workflows/prompt-only-v1.yml'
+
+jobs:
+  offline-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check scripts compile
+        run: python -m compileall -q skills/anime-series-maker/scripts skills/anime-series-maker/tests
+      - name: Run offline unit tests
+        run: python -m unittest discover -s skills/anime-series-maker/tests -v
