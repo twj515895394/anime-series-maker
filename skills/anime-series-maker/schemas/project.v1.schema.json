@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "project.v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "project_id",
+    "workflow_mode",
+    "active_series_id"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "workflow_mode": {
+      "const": "prompt_only"
+    },
+    "active_series_id": {
+      "type": "string"
+    }
+  }
+}

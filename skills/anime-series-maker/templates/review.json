@@ -1,0 +1,38 @@
+{
+  "schema_version": "1.0",
+  "artifacts": [
+    {
+      "artifact_id": "series",
+      "revision": 1,
+      "status": "needs_review",
+      "dependencies": []
+    },
+    {
+      "artifact_id": "episode",
+      "revision": 1,
+      "status": "needs_review",
+      "dependencies": [
+        "series"
+      ]
+    },
+    {
+      "artifact_id": "shots",
+      "revision": 1,
+      "status": "needs_review",
+      "dependencies": [
+        "series",
+        "episode"
+      ]
+    },
+    {
+      "artifact_id": "prompts",
+      "revision": 1,
+      "status": "draft",
+      "dependencies": [
+        "series",
+        "episode",
+        "shots"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "shots.v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "episode_id",
+    "shots"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "episode_id": {
+      "type": "string"
+    },
+    "shots": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "shot_id",
+          "scene_id",
+          "time",
+          "cast",
+          "framing",
+          "camera",
+          "action",
+          "transition_to_next"
+        ]
+      }
+    }
+  }
+}

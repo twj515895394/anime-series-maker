@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "episode.v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "episode_id",
+    "series_id",
+    "target_duration_s",
+    "premise",
+    "scenes"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "episode_id": {
+      "type": "string"
+    },
+    "series_id": {
+      "type": "string"
+    },
+    "target_duration_s": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "premise": {
+      "type": "string"
+    },
+    "scenes": {
+      "type": "array",
+      "minItems": 1
+    },
+    "beats": {
+      "type": "array"
+    }
+  }
+}

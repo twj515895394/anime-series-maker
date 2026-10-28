@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "prompt-manifest.v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "episode_id",
+    "prompts",
+    "compiler_version"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "episode_id": {
+      "type": "string"
+    },
+    "compiler_version": {
+      "type": "string"
+    },
+    "prompts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "shot_id",
+          "prompt_type",
+          "path",
+          "reference_asset_ids",
+          "source_hashes"
+        ]
+      }
+    }
+  }
+}

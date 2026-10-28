@@ -1,0 +1,105 @@
+{
+  "schema_version": "1.0",
+  "episode_id": "ep001",
+  "shots": [
+    {
+      "shot_id": "sh001",
+      "scene_id": "sc01",
+      "time": {
+        "start_s": 0,
+        "end_s": 4
+      },
+      "cast": [
+        "dog_officer_a"
+      ],
+      "framing": "medium full shot",
+      "camera": {
+        "angle": "eye level",
+        "motion": "slow tracking"
+      },
+      "action": {
+        "goal": "推门进入办公室，走到桌旁",
+        "beats": [
+          "右手推开门",
+          "迈步进屋",
+          "到桌边停下"
+        ],
+        "continuity_in": {
+          "position": "door",
+          "orientation": "toward desk",
+          "right_hand": "on door handle",
+          "prop_owner": {}
+        },
+        "continuity_out": {
+          "position": "desk",
+          "orientation": "toward desk",
+          "right_hand": "free",
+          "prop_owner": {}
+        }
+      },
+      "expression": "专注",
+      "gaze": "desk",
+      "references": [],
+      "dialogue_refs": [],
+      "sound_cues": [
+        "door opens",
+        "footsteps"
+      ],
+      "transition_to_next": "continuous_cut",
+      "prompt_targets": [
+        "video",
+        "first_frame"
+      ]
+    },
+    {
+      "shot_id": "sh002",
+      "scene_id": "sc01",
+      "time": {
+        "start_s": 4,
+        "end_s": 8
+      },
+      "cast": [
+        "dog_officer_a"
+      ],
+      "framing": "medium close-up",
+      "camera": {
+        "angle": "eye level",
+        "motion": "subtle push-in"
+      },
+      "action": {
+        "goal": "拿起桌上的手机，阅读消息并震惊",
+        "beats": [
+          "右手拿起手机",
+          "目光移向屏幕",
+          "耳朵竖起，尾巴短暂停止摆动"
+        ],
+        "continuity_in": {
+          "position": "desk",
+          "orientation": "toward desk",
+          "right_hand": "free",
+          "prop_owner": {}
+        },
+        "continuity_out": {
+          "position": "desk",
+          "orientation": "toward desk",
+          "right_hand": "holding phone",
+          "prop_owner": {
+            "phone": "dog_officer_a"
+          }
+        }
+      },
+      "expression": "震惊",
+      "gaze": "phone",
+      "references": [],
+      "dialogue_refs": [],
+      "sound_cues": [
+        "message notification"
+      ],
+      "transition_to_next": "end",
+      "prompt_targets": [
+        "video",
+        "last_frame"
+      ]
+    }
+  ]
+}

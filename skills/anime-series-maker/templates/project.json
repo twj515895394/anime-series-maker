@@ -1,0 +1,7 @@
+{
+  "schema_version": "1.0",
+  "project_id": "anthro-demo",
+  "workflow_mode": "prompt_only",
+  "active_series_id": "anthro-demo",
+  "default_language": "zh-CN"
+}
